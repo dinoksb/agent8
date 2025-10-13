@@ -269,6 +269,23 @@ export class WorkbenchStore {
     } else {
       logger.info('Forcing container reinitialization...');
 
+      // Backup current state before reinitialization
+      const backupEditorDocuments = this.#editorStore.documents.get();
+      const backupFiles = this.#filesStore.files.get();
+      const backupUnsavedFiles = new Set(this.unsavedFiles.get());
+
+      const editorFilesMap: FileMap = {};
+
+      for (const [filePath, doc] of Object.entries(backupEditorDocuments)) {
+        editorFilesMap[filePath] = {
+          type: 'file',
+          content: doc.value || '',
+          isBinary: doc.isBinary ?? false,
+        };
+      }
+
+      const mergedBackupFiles = { ...backupFiles, ...editorFilesMap };
+
       this.#currentContainer = new Promise<Container>((resolve, reject) => {
         this.#containerResolver = resolve;
         this.#containerRejecter = reject;
@@ -281,12 +298,7 @@ export class WorkbenchStore {
       this.#editorStore = new EditorStore(this.#filesStore);
       this.#terminalStore = new TerminalStore(this.#currentContainer);
 
-      const currentUnsavedFiles = this.unsavedFiles.get();
-
-      if (!(currentUnsavedFiles instanceof Set)) {
-        logger.warn('unsavedFiles is not a Set during reinit, converting to Set');
-        this.unsavedFiles.set(ensureUnsavedFilesSet(currentUnsavedFiles));
-      }
+      this.unsavedFiles.set(backupUnsavedFiles);
 
       this.#containerInitialized = false;
 
@@ -297,12 +309,12 @@ export class WorkbenchStore {
 
       if (containerResult) {
         try {
-          const currentFiles = this.#filesStore.files.get();
-
-          if (Object.keys(currentFiles).length > 0) {
+          if (Object.keys(mergedBackupFiles).length > 0) {
             logger.info('Mounting current file system to new container...');
-            await containerResult.mount(convertFileMapToFileSystemTree(currentFiles));
+            await containerResult.mount(convertFileMapToFileSystemTree(mergedBackupFiles));
             logger.info('File system successfully mounted to new container');
+          } else {
+            logger.info('No files to mount to new container');
           }
         } catch (error) {
           logger.error('Failed to mount file system to new container:', error);

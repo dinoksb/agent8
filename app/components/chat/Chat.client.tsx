@@ -653,7 +653,7 @@ export const ChatImpl = memo(
           {
             name: 'Workbench',
             getFiles: () => workbench.files.get(),
-            logSuccess: () => console.log('files recovery from workbench successful'),
+            logSuccess: () => logger.info('Files recovery from workbench successful'),
           },
           {
             name: 'Gitbase',
@@ -661,7 +661,7 @@ export const ChatImpl = memo(
               const projectPath = repoStore.get().path;
               return projectPath ? await fetchProjectFiles(projectPath) : {};
             },
-            logSuccess: () => console.log('files recovery from gitbase successful'),
+            logSuccess: () => logger.info('Files recovery from gitbase successful'),
           },
         ];
 
