@@ -397,7 +397,8 @@ There are tools available to resolve coding tasks. Please follow these guideline
   - Verify submission succeeded before proceeding
 
 **P1 (RECOMMENDED)**:
-- When updating assets.json, only add URLs already in context
+- **CRITICAL FOR ASSETS.JSON**: assets.json MUST use EXACTLY 2-level depth (CATEGORY → RESOURCE_ID). NEVER create 3-level nested structures (e.g., images → backgrounds → classroom). Instead, use descriptive resource IDs (e.g., images → classroom_background)
+  - When updating assets.json, only add URLs already in context
 - **CRITICAL FOR SAFETY**: Always read available documentation through provided tools before using any library or SDK:
   - **vibe-starter-3d, vibe-starter-3d-environment**: Read available documentation through tools
   - **gameserver-sdk (@agent8/gameserver)**: Server operations must be based on available SDK documentation
@@ -686,13 +687,53 @@ export function getResourceSystemPrompt(files: any) {
   You can only use resource urls from \`src/assets.json\` or listed in \`availableResources\` or listed url in \`<Attachments />\` user attached
   If you want to use a resource from \`<availableResources>\`, \`<Attachments />\`, add that resource to \`src/assets.json\` in your response.
   When adding to assets.json, it's good to include description and metadata along with the url. This will help the LLM utilize these resources better in future interactions.
-  src/assets.json format:
-  \`\`\`js filename="src/assets.json"
+
+  <CRITICAL_STRUCTURE_RULE>
+  **🚨 ABSOLUTE RULE: src/assets.json MUST have EXACTLY 2 levels of depth 🚨**
+  
+  The structure of assets.json **MUST** follow this format:
+  - Level 1: Top-level category key (e.g., "images", "models", "sounds")
+  - Level 2: Resource object (containing url, description, metadata)
+  - **Level 3 or deeper is STRICTLY FORBIDDEN!**
+
+  **Correct Key Naming Convention:**
+  - If you need subcategories, connect them with underscores (_)
+  - Format: "topCategory_subCategory_resourceName"
+  - Examples: "characters_hero", "backgrounds_forest", "models_enemies_goblin"
+
+  **✅ CORRECT Example - Exactly 2 levels:**
+  \`\`\`json
   {
     "images": {
-      "character": {
-        "url": "https://example.com/resource.png",
-        "description": "A beautiful image",
+      "characters_hero": {
+        "url": "https://example.com/hero.png",
+        "description": "Hero character image",
+        "metadata": {
+          "width": 100,
+          "height": 100
+        }
+      },
+      "characters_villain": {
+        "url": "https://example.com/villain.png",
+        "description": "Villain character image",
+        "metadata": {
+          "width": 100,
+          "height": 100
+        }
+      },
+      "backgrounds_forest": {
+        "url": "https://example.com/forest.png",
+        "description": "Forest background image",
+        "metadata": {
+          "width": 1000,
+          "height": 1000
+        }
+      }
+    },
+    "models": {
+      "enemies_goblin": {
+        "url": "https://example.com/goblin.glb",
+        "description": "Goblin 3D model",
         "metadata": {
           "width": 100,
           "height": 100
@@ -702,19 +743,42 @@ export function getResourceSystemPrompt(files: any) {
   }
   \`\`\`
 
-  The structure of assets.json is fixed at 2 levels deep. The first key is the category and the second key is the resource ID. Please always maintain this structure.
-  \`\`\`js
+  **❌ WRONG Example - 3 level structure (NEVER USE THIS):**
+  \`\`\`json
   {
-    "CATEGORY": {
-      "RESOURCE_ID": {
-        "url": "...",
-        "description": "...",
-        "metadata": {}
+    "images": {
+      "characters": {              // ❌ This creates a 3-level structure!
+        "hero": {                  // ❌ DO NOT nest like this!
+          "url": "https://example.com/hero.png"
+          "description": "Hero character image",
+          "metadata": {
+            "width": 100,
+            "height": 100
+          }
+        }
       }
     }
   }
   \`\`\`
 
+  **How to Use in Code:**
+  \`\`\`js
+  import Assets from './assets.json'
+
+  // ✅ Correct usage (2-level access)
+  const heroImage = Assets.images.characters_hero.url;
+  const goblinModel = Assets.models.enemies_goblin.url;
+
+  // ❌ Wrong usage (3-level access - impossible)
+  const heroImage = Assets.images.characters.hero.url; // DO NOT create this structure!
+  \`\`\`
+
+  **Structure Validation Checklist:**
+  1. Does the resource object come immediately after the top-level key (images, models, etc.)? ✅
+  2. Are categories separated by underscores (_) in the resource key name? ✅
+  3. Does the nesting not exceed 2 levels? ✅
+  4. Does every resource object have a "url" property? ✅
+  </CRITICAL_STRUCTURE_RULE>
 
 **P0 (MANDATORY)**: Follow these strict resource management rules to prevent application errors:
 
@@ -725,23 +789,16 @@ export function getResourceSystemPrompt(files: any) {
    - Use code-based solutions like CSS animations, canvas drawing, or procedural generation
    - Consider simplifying the visual design to work with available resources
 
-2. Resource reference pattern:
-   \`\`\`js
-   import Assets from './assets.json'
-
-   // Correct way to use assets
-   const knightImageUrl = Assets.character.knight.url;
-   \`\`\`
-
-3. **P0 (MANDATORY)**: When modifying assets.json structure or keys:
+2. **P0 (MANDATORY)**: When modifying assets.json structure or keys:
    - **BEFORE** changing any keys in assets.json, use ${TOOL_NAMES.SEARCH_FILE_CONTENTS} tool to find all files that reference those keys
-   - Search for both the category name and resource ID (e.g., search for "character.knight" or "knight")
+   - Search for both the category name and resource ID (e.g., search for "characters_knight")
    - Update ALL files that reference the changed keys in the same response
    - Use ${TOOL_NAMES.SEARCH_FILE_CONTENTS} tool to ensure no references are missed
    - This is critical because assets.json is centrally managed and breaking references will cause runtime errors
 
-4. **P1 (RECOMMENDED)**: When adding new resources to assets.json:
-   - Follow the established 2-level structure: CATEGORY.RESOURCE_ID
+3. **P1 (RECOMMENDED)**: When adding new resources to assets.json:
+   - **MUST maintain the 2-level structure**: CATEGORY.RESOURCE_ID
+   - Connect subcategories with underscores (_)
    - Include meaningful descriptions and metadata
    - Verify the resource URL is accessible and from approved sources
 
