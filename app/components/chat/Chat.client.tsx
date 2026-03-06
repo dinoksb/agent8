@@ -924,7 +924,9 @@ export const ChatImpl = memo(
       }
 
       const timer = setTimeout(() => {
-        stop();
+        stopRef.current();
+        clearProgressState();
+        setFakeLoading(false);
 
         /*
          * In submitted state, useChat has not yet added an assistant message for the current
