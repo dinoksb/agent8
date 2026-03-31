@@ -317,6 +317,12 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                         <span className="text-heading-xs text-subtle">Response Stopped</span>
                       </div>
                     </div>
+                  ) : !isUserMessage && messageText.trim() === '' && failedMessageIds?.has(messageId ?? '') ? (
+                    <div className="flex flex-col justify-start items-start gap-0 self-stretch rounded-[24px_24px_24px_0] border border-tertiary bg-primary backdrop-blur-[4px] mt-3">
+                      <div className="relative flex items-center justify-between p-[14px] w-full bg-primary rounded-[23px] rounded-bl-none">
+                        <span className="text-heading-xs text-danger-bold">Response Failed</span>
+                      </div>
+                    </div>
                   ) : (
                     <div
                       data-message-index={index}
@@ -495,38 +501,39 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                               </Tooltip.Root>
                             );
                           })()}
-                        <Tooltip.Root delayDuration={100}>
-                          <Tooltip.Trigger asChild>
-                            <CustomIconButton
-                              variant="secondary-transparent"
-                              size="sm"
-                              icon={<CopyLineIcon size={20} />}
-                              onClick={() => {
-                                // Get rendered text from message content only (excludes UI buttons like Show All/Hide)
-                                const messageElement = document.querySelector(
-                                  `[data-message-index="${index}"]`,
-                                ) as HTMLElement | null;
-                                const contentElement = messageElement?.querySelector(
-                                  '[data-message-content]',
-                                ) as HTMLElement | null;
-                                const textToCopy = contentElement?.innerText || messageText;
-                                navigator.clipboard.writeText(textToCopy);
-                                toast.success('Copied to clipboard');
-                              }}
-                              disabled={false}
-                              data-track="editor-response-copy"
-                            />
-                          </Tooltip.Trigger>
-                          <Tooltip.Portal>
-                            <Tooltip.Content
-                              className="inline-flex items-start rounded-radius-8 bg-[var(--color-bg-inverse,#F3F5F8)] text-[var(--color-text-inverse,#111315)] p-[9.6px] shadow-md z-[9999] text-body-md-medium"
-                              side="bottom"
-                            >
-                              Copy
-                              <Tooltip.Arrow className="fill-[var(--color-bg-inverse,#F3F5F8)]" />
-                            </Tooltip.Content>
-                          </Tooltip.Portal>
-                        </Tooltip.Root>
+                        {messageText.trim() !== '' && (
+                          <Tooltip.Root delayDuration={100}>
+                            <Tooltip.Trigger asChild>
+                              <CustomIconButton
+                                variant="secondary-transparent"
+                                size="sm"
+                                icon={<CopyLineIcon size={20} />}
+                                onClick={() => {
+                                  const messageElement = document.querySelector(
+                                    `[data-message-index="${index}"]`,
+                                  ) as HTMLElement | null;
+                                  const contentElement = messageElement?.querySelector(
+                                    '[data-message-content]',
+                                  ) as HTMLElement | null;
+                                  const textToCopy = contentElement?.innerText || messageText;
+                                  navigator.clipboard.writeText(textToCopy);
+                                  toast.success('Copied to clipboard');
+                                }}
+                                disabled={false}
+                                data-track="editor-response-copy"
+                              />
+                            </Tooltip.Trigger>
+                            <Tooltip.Portal>
+                              <Tooltip.Content
+                                className="inline-flex items-start rounded-radius-8 bg-[var(--color-bg-inverse,#F3F5F8)] text-[var(--color-text-inverse,#111315)] p-[9.6px] shadow-md z-[9999] text-body-md-medium"
+                                side="bottom"
+                              >
+                                Copy
+                                <Tooltip.Arrow className="fill-[var(--color-bg-inverse,#F3F5F8)]" />
+                              </Tooltip.Content>
+                            </Tooltip.Portal>
+                          </Tooltip.Root>
+                        )}
                         {/* Show Restore button for assistant messages with commit hash (except last message, only if message has content and not aborted) */}
                         {messageText.trim() !== '' &&
                           !isMessageAborted &&
@@ -568,10 +575,9 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                               </Tooltip.Portal>
                             </Tooltip.Root>
                           )}
-                        {/* Show Retry button only for the last message (only if message has content and not aborted) */}
-                        {messageText.trim() !== '' &&
+                        {/* Show Retry button only for the last message (only if message has content or failed, and not aborted) */}
+                        {(messageText.trim() !== '' || failedMessageIds?.has(messageId ?? '')) &&
                           !isMessageAborted &&
-                          !failedMessageIds?.has(messageId ?? '') &&
                           index > 0 &&
                           messages[index - 1]?.role === 'user' &&
                           isLast && (
@@ -669,7 +675,7 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                             </Tooltip.Root>
                           )}
                         {failedMessageIds?.has(messageId ?? '') && (
-                          <span className="text-body-sm text-tertiary">Please retry your prompt</span>
+                          <span className="text-body-sm text-tertiary py-[9px]">Please retry your prompt</span>
                         )}
                       </div>
                     </div>

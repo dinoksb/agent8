@@ -608,6 +608,7 @@ export const ChatImpl = memo(
     const [failedMessageIds, setFailedMessageIds] = useState<Set<string>>(new Set());
     const failedMessageIdRef = useRef<string | null>(null);
     const lastAiMessageIdRef = useRef<string | null>(null);
+    const messagesRef = useRef<UIMessage[]>([]);
     const [installNpm, setInstallNpm] = useState<boolean>(false);
     const [customProgressAnnotations, setCustomProgressAnnotations] = useState<ProgressAnnotation[]>([]);
 
@@ -775,11 +776,31 @@ export const ChatImpl = memo(
           return;
         }
 
-        const id = lastAiMessageIdRef.current;
+        const currentMessages = messagesRef.current;
+        const lastMessage = currentMessages[currentMessages.length - 1];
 
-        if (id) {
-          setFailedMessageIds((prev) => new Set(prev).add(id));
-          failedMessageIdRef.current = id;
+        if (lastMessage?.role === 'user') {
+          /*
+           * Error occurred in submitted state — no assistant message exists yet for this turn.
+           * Create a placeholder so the user can see the failure and retry.
+           */
+
+          const errorId = `assistant-error-${Date.now()}`;
+
+          setMessages((prev) => [
+            ...prev,
+            { id: errorId, role: 'assistant', parts: [{ type: 'text', text: '' }] } as UIMessage,
+          ]);
+          setFailedMessageIds((prev) => new Set(prev).add(errorId));
+          failedMessageIdRef.current = errorId;
+        } else {
+          // Error occurred in streaming state — assistant message already exists, mark it as failed.
+          const id = lastAiMessageIdRef.current;
+
+          if (id) {
+            setFailedMessageIds((prev) => new Set(prev).add(id));
+            failedMessageIdRef.current = id;
+          }
         }
 
         const currentModel = chatStateRef.current.model;
@@ -893,6 +914,39 @@ export const ChatImpl = memo(
 
     // Derived state for loading status
     const isLoading = status === 'streaming' || status === 'submitted';
+
+    // Timeout: if no response arrives within 60s after submission, treat as failed
+    const RESPONSE_TIMEOUT_MS = 60_000;
+
+    useEffect(() => {
+      if (status !== 'submitted') {
+        return undefined;
+      }
+
+      const timer = setTimeout(() => {
+        stopRef.current();
+        clearProgressState();
+        setFakeLoading(false);
+
+        /*
+         * In submitted state, useChat has not yet added an assistant message for the current
+         * request — lastAssistant would be the previous turn's message, not the current one.
+         * Always create a new placeholder to represent the timed-out response.
+         */
+        const timeoutId = `assistant-timeout-${Date.now()}`;
+
+        setMessages((prev) => [
+          ...prev,
+          { id: timeoutId, role: 'assistant', parts: [{ type: 'text', text: '' }] } as UIMessage,
+        ]);
+        setFailedMessageIds((prev) => new Set(prev).add(timeoutId));
+        failedMessageIdRef.current = timeoutId;
+
+        logger.warn('Response timeout: no data received within ' + RESPONSE_TIMEOUT_MS + 'ms');
+      }, RESPONSE_TIMEOUT_MS);
+
+      return () => clearTimeout(timer);
+    }, [status]);
 
     useEffect(() => {
       const prompt = searchParams.get('prompt');
@@ -1034,6 +1088,8 @@ export const ChatImpl = memo(
     }, [messages, isLoading, parseMessages]);
 
     useEffect(() => {
+      messagesRef.current = messages;
+
       const lastAiMsg = [...messages].reverse().find((m) => m.role === 'assistant');
       lastAiMessageIdRef.current = lastAiMsg?.id ?? null;
     }, [messages]);
@@ -2267,9 +2323,11 @@ export const ChatImpl = memo(
       }
 
       if (!commitHash || !isCommitHash(commitHash)) {
-        processError('No commit hash found', startTime, {
-          context: 'handleRetry - commit hash validation',
-        });
+        /*
+         * No valid commit to revert to (e.g. failed before any code was generated).
+         * Restore the user's input so they can retry without reverting.
+         */
+        setInput(stripMetadata(extractTextContent(message)));
 
         return;
       }
