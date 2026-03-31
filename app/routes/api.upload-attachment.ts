@@ -59,31 +59,45 @@ async function imageUploadAction({ context, request }: ActionFunctionArgs) {
     const verse = formData.get('verse') as string;
 
     if (!file || !path) {
-      throw new Response('Missing required fields: file, path', { status: 400, statusText: 'Bad Request' });
+      throw new Response(JSON.stringify({ success: false, error: 'Missing required fields: file, path' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const { accessToken, walletAddress } = context.user as ContextUser;
 
     if (!accessToken) {
-      throw new Response('Unauthorized (no access token)', { status: 401, statusText: 'Unauthorized' });
+      throw new Response(JSON.stringify({ success: false, error: 'Unauthorized (no access token)' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const isChatUpload = path === CHAT_UPLOADS_PATH;
     const verseId = isChatUpload ? walletAddress : verse;
 
     if (!verseId) {
-      throw new Response(isChatUpload ? 'User wallet address is not available' : 'Missing required field: verse', {
+      let error: string;
+
+      if (isChatUpload) {
+        error = walletAddress ? `Invalid wallet address: ${walletAddress}` : 'User wallet address is empty';
+      } else {
+        error = 'Missing required field: verse';
+      }
+
+      throw new Response(JSON.stringify({ success: false, error }), {
         status: 400,
-        statusText: 'Bad Request',
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
     const endpoint = env.V8_GAMESERVER_ENDPOINT;
 
     if (!endpoint) {
-      throw new Response('Game server endpoint is not configured', {
+      throw new Response(JSON.stringify({ success: false, error: 'Game server endpoint is not configured' }), {
         status: 500,
-        statusText: 'Internal Server Error',
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
