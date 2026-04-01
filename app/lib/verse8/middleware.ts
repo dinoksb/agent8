@@ -124,6 +124,10 @@ export function withV8AuthUser(handler: any, options: V8AuthUserOptions = {}) {
     } catch (error: any) {
       logger.error('V8 Auth Middleware Error', error);
 
+      if (error instanceof Response) {
+        return error;
+      }
+
       return new Response(error.message, { status: getErrorStatus(error) || 400 });
     }
   };
